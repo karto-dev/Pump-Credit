@@ -1,0 +1,67 @@
+# Production stack for one EC2 instance: Postgres + Spring Boot backend + Caddy (HTTPS, serves the SPA).
+#   cp .env.prod.example .env.prod   # fill in secrets
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+# Postgres is not published on any host port; only Caddy listens (80/443).
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: petrol_credit
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      TZ: Asia/Kolkata
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d petrol_credit"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/petrol_credit
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      ADMIN_USERNAME: ${ADMIN_USERNAME}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      CORS_ORIGINS: https://${DOMAIN}
+      STORAGE_TYPE: ${STORAGE_TYPE:-LOCAL}
+      S3_BUCKET: ${S3_BUCKET:-}
+      AWS_REGION: ${AWS_REGION:-ap-south-1}
+      BACKUP_ENABLED: "true"
+      NOTIFY_PROVIDER: ${NOTIFY_PROVIDER:-LOG}
+      NOTIFY_WEBHOOK_URL: ${NOTIFY_WEBHOOK_URL:-}
+      NOTIFY_WEBHOOK_TOKEN: ${NOTIFY_WEBHOOK_TOKEN:-}
+    volumes:
+      - uploads:/data/uploads
+      - backups:/data/backups
+
+  web:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  pgdata:
+  uploads:
+  backups:
+  caddy_data:
+  caddy_config:

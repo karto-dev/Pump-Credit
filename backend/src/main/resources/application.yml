@@ -1,0 +1,69 @@
+server:
+  port: ${PORT:8080}   # Render and similar hosts pass the port in PORT
+
+spring:
+  application:
+    name: petrol-pump-credit
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5434/petrol_credit}
+    username: ${DB_USERNAME:ppcms}
+    password: ${DB_PASSWORD:ppcms_local_dev}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate   # schema is owned by Flyway, never by Hibernate
+    properties:
+      hibernate.jdbc.time_zone: Asia/Kolkata
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 12MB
+  jackson:
+    time-zone: Asia/Kolkata
+
+app:
+  jwt:
+    # Override JWT_SECRET in every non-local environment (min 32 bytes).
+    secret: ${JWT_SECRET:local-dev-secret-change-me-0123456789abcdef}
+    ttl-minutes: ${JWT_TTL_MINUTES:480}
+  security:
+    max-failed-logins: 5
+    lock-minutes: 15
+  # First-run admin account, created only if no ADMIN user exists.
+  bootstrap:
+    admin-username: ${ADMIN_USERNAME:admin}
+    admin-password: ${ADMIN_PASSWORD:Admin@12345}
+  storage:
+    # LOCAL for dev (and a single EC2 with an EBS volume); S3 keeps bills, proofs and backups in a private bucket.
+    type: ${STORAGE_TYPE:LOCAL}
+    local-root: ${STORAGE_LOCAL_ROOT:./uploads}
+    s3-bucket: ${S3_BUCKET:}
+    s3-region: ${AWS_REGION:ap-south-1}
+    s3-prefix: ${S3_PREFIX:}
+  cors:
+    allowed-origins: ${CORS_ORIGINS:http://localhost:5173}
+  jobs:
+    # How often unanswered bills are checked for the NO_RESPONSE timeout (CUSTOMER_APPROVAL_TIMEOUT_HRS).
+    approval-timeout-ms: ${APPROVAL_TIMEOUT_JOB_MS:900000}
+    # Outstanding reminders (frequency per customer is the PAYMENT_REMINDER_DAYS setting).
+    reminder-cron: ${REMINDER_CRON:0 0 10 * * *}
+  notify:
+    # LOG = write SMS/WhatsApp to the server log (no provider yet). WEBHOOK = POST {channel,to,text} to the URL.
+    provider: ${NOTIFY_PROVIDER:LOG}
+    webhook-url: ${NOTIFY_WEBHOOK_URL:}
+    webhook-token: ${NOTIFY_WEBHOOK_TOKEN:}
+  backup:
+    enabled: ${BACKUP_ENABLED:false}       # nightly run; "Back up now" works either way
+    cron: ${BACKUP_CRON:0 30 2 * * *}      # IST
+    dir: ${BACKUP_DIR:./backups}
+    # Blank = pg_dump built from the datasource. Must write the dump to stdout.
+    command: ${BACKUP_COMMAND:}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health

@@ -1,0 +1,33 @@
+# DOMAIN comes from .env.prod. With a real domain Caddy gets a Let's Encrypt certificate automatically;
+# DOMAIN=localhost gives a local self-signed certificate for trying the stack on a laptop.
+{$DOMAIN} {
+	encode zstd gzip
+
+	handle /api/* {
+		request_body {
+			max_size 12MB
+		}
+		reverse_proxy backend:8080
+	}
+
+	# Actuator stays internal.
+	handle /actuator/* {
+		respond 404
+	}
+
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+		@assets path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+}

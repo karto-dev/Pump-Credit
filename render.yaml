@@ -1,0 +1,54 @@
+# Render Blueprint: free backend (Docker) + free static frontend. The database lives on Neon (free Postgres).
+# Render → New → Blueprint → pick this repo. It asks for the values marked sync: false. Full steps: docs/DEPLOY-RENDER.md
+#
+# If Render gives the backend a different URL than https://pump-credit-api.onrender.com (the name was taken),
+# change the /api/* rewrite below to the real URL and push again.
+services:
+  - type: web
+    name: pump-credit-api
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /actuator/health
+    envVars:
+      # Neon: use the direct (not "-pooler") host, e.g.
+      # jdbc:postgresql://ep-xxxx.ap-southeast-1.aws.neon.tech/neondb?sslmode=require
+      - key: DB_URL
+        sync: false
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      # First admin, created on the empty database. You change it at first login.
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CORS_ORIGINS
+        value: https://pump-credit.onrender.com
+      # 512 MB instance: keep the JVM small.
+      - key: JAVA_OPTS
+        value: -XX:MaxRAMPercentage=70 -XX:+UseSerialGC -Xss512k -XX:+ExitOnOutOfMemoryError
+      - key: BACKUP_ENABLED
+        value: "false"
+
+  - type: web
+    name: pump-credit
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+    routes:
+      # Same-origin API: the browser calls /api on the frontend and Render forwards it to the backend.
+      - type: rewrite
+        source: /api/*
+        destination: https://pump-credit-api.onrender.com/api/*
+      # Single-page app: every other path serves index.html.
+      - type: rewrite
+        source: /*
+        destination: /index.html

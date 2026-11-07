@@ -1,0 +1,12 @@
+backend/target/
+backend/uploads/
+frontend/node_modules/
+frontend/dist/
+.env
+.DS_Store
+.idea/
+.vscode/
+backend/backups/
+.env.prod
+frontend/*.tsbuildinfo
+.github/
