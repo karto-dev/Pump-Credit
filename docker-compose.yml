@@ -1,3 +1,6 @@
+# Fixed project name so the database volume (petrolpumpcredit_ppcms-pgdata) is the same whatever the folder is called.
+name: petrolpumpcredit
+
 services:
   postgres:
     image: postgres:16
