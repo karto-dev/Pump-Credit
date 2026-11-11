@@ -118,6 +118,8 @@ The frontend calls the backend at the relative path `/api`, so the same build wo
 |---|---|---|
 | `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` | Database connection | local Docker DB on 5434 |
 | `JWT_SECRET` | Signs login tokens (32+ characters in any shared environment) | dev value |
+| `SESSION_IDLE_MINUTES` | Sign out after this many minutes without activity | 10 |
+| `DB_POOL_SIZE` | Maximum database connections (idle ones are pinged every minute and recycled every 5) | 5 |
 | `ADMIN_USERNAME`, `ADMIN_PASSWORD` | First admin, created only on an empty database | `admin` / `Admin@12345` |
 | `CORS_ORIGINS` | Frontend URL(s) allowed to call the API | `http://localhost:5173` |
 | `PORT` | Server port (set by Render) | 8080 |

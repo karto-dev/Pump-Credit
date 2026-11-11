@@ -8,6 +8,7 @@ export interface Me {
   customerId: number | null;
   mustChangePassword: boolean;
   permissions: string[];
+  idleMinutes: number;
 }
 
 const TOKEN_KEY = 'ppc.token';
@@ -24,16 +25,37 @@ export class ApiError extends Error {
   }
 }
 
+// Long enough for a sleeping free-tier backend to wake up (about a minute), short enough that a stuck
+// request ends in an error message instead of a spinner that never stops.
+const REQUEST_TIMEOUT_MS = 75_000;
+
+/** fetch() that gives up after REQUEST_TIMEOUT_MS. Timeouts and network failures become ApiError(0). */
+async function fetchWithTimeout(url: string, init: RequestInit = {}): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch {
+    throw new ApiError(0, controller.signal.aborted
+      ? 'The server is taking too long to respond. Please try again.'
+      : 'Cannot reach the server. Check your connection and try again.');
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const isLogin = path === '/auth/login';
   const headers = new Headers(init.headers);
   const token = tokenStore.get();
-  if (token) headers.set('Authorization', `Bearer ${token}`);
+  // Never send an old token with the login itself.
+  if (token && !isLogin) headers.set('Authorization', `Bearer ${token}`);
   if (init.body && !(init.body instanceof FormData)) headers.set('Content-Type', 'application/json');
 
-  const res = await fetch(`/api${path}`, { ...init, headers });
-  if (res.status === 401 && path !== '/auth/login') {
+  const res = await fetchWithTimeout(`/api${path}`, { ...init, headers });
+  if (res.status === 401 && !isLogin) {
     tokenStore.clear();
-    window.location.assign('/login');
+    window.location.assign('/login?reason=expired');
   }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -44,7 +66,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 /** Authenticated binary fetch (bill photos, proofs) -> object URL for <img>/<iframe>. Caller revokes it. */
 export async function apiBlobUrl(path: string): Promise<{ url: string; type: string }> {
-  const res = await fetch(`/api${path}`, { headers: { Authorization: `Bearer ${tokenStore.get() ?? ''}` } });
+  const res = await fetchWithTimeout(`/api${path}`, { headers: { Authorization: `Bearer ${tokenStore.get() ?? ''}` } });
   if (!res.ok) throw new ApiError(res.status, `Could not load file (${res.status})`);
   const blob = await res.blob();
   return { url: URL.createObjectURL(blob), type: blob.type };
@@ -83,7 +105,7 @@ export async function apiForm<T>(path: string, json: Record<string, unknown>, fi
 
 /** Authenticated download (Excel / PDF exports) saved under the server's file name. */
 export async function apiDownload(path: string, fallbackName: string): Promise<void> {
-  const res = await fetch(`/api${path}`, { headers: { Authorization: `Bearer ${tokenStore.get() ?? ''}` } });
+  const res = await fetchWithTimeout(`/api${path}`, { headers: { Authorization: `Bearer ${tokenStore.get() ?? ''}` } });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new ApiError(res.status, body.detail ?? `Download failed (${res.status})`, body);

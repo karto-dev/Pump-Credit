@@ -1,10 +1,16 @@
 import { useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth';
+
+const SIGNED_OUT_REASONS: Record<string, string> = {
+  idle: 'You were signed out after a period of inactivity. Please sign in again.',
+  expired: 'Your session has ended. Please sign in again.',
+};
 
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const notice = SIGNED_OUT_REASONS[useSearchParams()[0].get('reason') ?? ''];
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -44,6 +50,7 @@ export default function Login() {
           <div className="brand mb-4"><span className="brand-mark"><i className="bi bi-fuel-pump-fill" /></span>Pump Credit</div>
           <h3>Welcome back</h3>
           <p className="muted mb-4">Sign in to your account</p>
+          {notice && !error && <div className="notice mb-3">{notice}</div>}
           <label>
             Username
             <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" required autoFocus />

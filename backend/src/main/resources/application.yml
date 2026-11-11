@@ -8,6 +8,20 @@ spring:
     url: ${DB_URL:jdbc:postgresql://localhost:5434/petrol_credit}
     username: ${DB_USERNAME:ppcms}
     password: ${DB_PASSWORD:ppcms_local_dev}
+    # Neon and Render's network drop idle connections without telling us. Keep the pool small, ping idle
+    # connections and recycle them before that happens, and never let one dead socket hang a request.
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:5}
+      minimum-idle: 1
+      idle-timeout: 120000         # 2 min: close spare idle connections early
+      keepalive-time: 60000        # 1 min: test idle connections, replace dead ones in the background
+      max-lifetime: 300000         # 5 min: recycle before any idle cut-off on the way to the DB
+      connection-timeout: 15000    # a request waits at most 15 s for a connection, then fails
+      validation-timeout: 3000
+      data-source-properties:
+        tcpKeepAlive: true
+        connectTimeout: 10         # seconds
+        socketTimeout: 60          # seconds; a query on a dead connection fails instead of blocking forever
   jpa:
     open-in-view: false
     hibernate:
@@ -32,6 +46,8 @@ app:
   security:
     max-failed-logins: 5
     lock-minutes: 15
+    # Sign out after this many minutes without activity (checked by the browser and by the API).
+    idle-minutes: ${SESSION_IDLE_MINUTES:10}
   # First-run admin account, created only if no ADMIN user exists.
   bootstrap:
     admin-username: ${ADMIN_USERNAME:admin}

@@ -9,7 +9,7 @@ public record AppProperties(Jwt jwt, Security security, Bootstrap bootstrap, Cor
 
     public record Jwt(String secret, long ttlMinutes) {}
 
-    public record Security(int maxFailedLogins, int lockMinutes) {}
+    public record Security(int maxFailedLogins, int lockMinutes, int idleMinutes) {}
 
     public record Bootstrap(String adminUsername, String adminPassword) {}
 

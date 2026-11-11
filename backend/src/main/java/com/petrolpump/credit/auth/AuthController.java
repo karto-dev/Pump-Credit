@@ -54,8 +54,9 @@ public class AuthController {
 
     public record LoginRequest(@NotBlank String username, @NotBlank String password) {}
 
+    /** idleMinutes: the browser signs the user out after this long without activity (the API enforces it too). */
     public record MeResponse(long id, String username, String fullName, String role, Long customerId,
-                             boolean mustChangePassword, Set<String> permissions) {}
+                             boolean mustChangePassword, Set<String> permissions, int idleMinutes) {}
 
     public record LoginResponse(String token, Instant expiresAt, MeResponse user) {}
 
@@ -139,12 +140,12 @@ public class AuthController {
                 """, user.getId(), current.sessionId());
         audit.log(current, "PASSWORD_CHANGED", "USER", user.getId(), null, null, null);
         return new MeResponse(user.getId(), user.getUsername(), user.getFullName(), user.getRole().getCode(),
-                user.getCustomerId(), false, current.permissions());
+                user.getCustomerId(), false, current.permissions(), props.security().idleMinutes());
     }
 
-    private static MeResponse toMe(User u, Set<String> perms) {
+    private MeResponse toMe(User u, Set<String> perms) {
         return new MeResponse(u.getId(), u.getUsername(), u.getFullName(), u.getRole().getCode(), u.getCustomerId(),
-                u.isMustChangePassword(), perms);
+                u.isMustChangePassword(), perms, props.security().idleMinutes());
     }
 
     private static ResponseStatusException invalidCredentials() {

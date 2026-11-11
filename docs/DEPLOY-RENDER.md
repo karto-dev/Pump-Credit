@@ -72,4 +72,6 @@ Every push to `main` redeploys both services automatically.
 - **Login shows "Request failed (502/504)"**: the backend is waking up. Wait a minute and try again.
 - **Login shows 403**: `CORS_ORIGINS` doesn't match the frontend URL exactly (it must start with `https://` and have no trailing slash).
 - **The backend fails at start with a connection error**: check that `DB_URL` starts with `jdbc:postgresql://`, ends with `?sslmode=require`, and uses the non-pooler host.
+- **Signed out after 10 minutes**: that is the idle timeout. Change it with the backend env var `SESSION_IDLE_MINUTES`.
+- **Login shows "The server is taking too long to respond"**: the backend did not answer within 75 seconds (usually a cold start). Try again.
 - **Logs**: Render → service → **Logs**.

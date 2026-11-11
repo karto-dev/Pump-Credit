@@ -1,5 +1,6 @@
 package com.petrolpump.credit.security;
 
+import com.petrolpump.credit.config.AppProperties;
 import com.petrolpump.credit.user.PermissionService;
 import com.petrolpump.credit.user.UserRepository;
 import io.jsonwebtoken.Claims;
@@ -23,7 +24,7 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * Validates the bearer token, checks the server-side session is still live (logout / admin revoke),
+ * Validates the bearer token, checks the server-side session is still live (logout / admin revoke / idle timeout),
  * and reloads role + permissions from the DB on every request so permission changes apply immediately.
  */
 @Component
@@ -33,12 +34,15 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     private final UserRepository users;
     private final PermissionService permissionService;
     private final JdbcTemplate jdbc;
+    private final int idleMinutes;
 
-    public JwtAuthFilter(JwtService jwtService, UserRepository users, PermissionService permissionService, JdbcTemplate jdbc) {
+    public JwtAuthFilter(JwtService jwtService, UserRepository users, PermissionService permissionService, JdbcTemplate jdbc,
+                         AppProperties props) {
         this.jwtService = jwtService;
         this.users = users;
         this.permissionService = permissionService;
         this.jdbc = jdbc;
+        this.idleMinutes = props.security().idleMinutes();
     }
 
     @Override
@@ -53,10 +57,13 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     private void authenticate(Claims claims) {
         UUID sessionId = UUID.fromString(claims.getId());
-        Boolean sessionLive = jdbc.queryForObject(
-                "SELECT EXISTS (SELECT 1 FROM user_sessions WHERE id = ? AND revoked_at IS NULL AND expires_at > now())",
-                Boolean.class, sessionId);
-        if (!Boolean.TRUE.equals(sessionLive)) return;
+        // Live = not revoked, not expired, and used within the idle window. Touching it slides the window.
+        int live = jdbc.update("""
+                UPDATE user_sessions SET last_seen_at = now()
+                 WHERE id = ? AND revoked_at IS NULL AND expires_at > now()
+                   AND last_seen_at > now() - make_interval(mins => ?)
+                """, sessionId, idleMinutes);
+        if (live == 0) return;
 
         users.findById(Long.parseLong(claims.getSubject()))
                 .filter(u -> u.isActive() && !u.isLocked())
